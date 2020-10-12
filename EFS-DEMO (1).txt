@@ -1,0 +1,55 @@
+ELASTIC FILE SYSTEM [Shared Folder]:
+------------------------------------------
+1.EFS - Elastic File Sharing
+2.it is a common sharing location between the VMs.
+3.EFS works on NFS - Network File Sharing
+4.Port Number : 2049
+5.Create New "Security Group"
+   VPC-DashBoard > EFS-SG:
+	SSH	22	Anywhere
+	HTTP	80	Anywhere
+	HTTPS	443	Anywhere
+	NFS	2049	Anywhere
+
+6.Services > EFS 
+7.Create File System
+	Name:EFS-DEMO
+	VPC : VPC1
+	Create
+8.file system > network > Create mount targets with subnets and security groups
+
+9.Open the Documentation :
+ documentation : Mounting EFS file systems , Installing the amazon-efs-utils package
+ copy the url : sudo yum install -y amazon-efs-utils
+
+
+10.Launch 2 EC2 Instance(in 2 different subnets) with EFS-SG
+11.Login to EC2 instance (VM1)
+   sudo yum install -y amazon-efs-utils
+12.mkdir efs
+
+13.Click on Attach
+14.Mount via DNS
+
+15.ls
+16.mkdir efs
+17. EFS-DASHBOARD > Attach > mount via DNS >
+     sudo mount -t efs -o tls fs-74ba380c:/ efs
+     paste on VM1 Terminal
+
+18.df -h
+19.cd efs
+20.touch sam{1..10}
+21.ls
+-------------------------------------------
+22.Login to VM2
+23.sudo yum install -y amazon-efs-utils
+24.mkdir efs
+25.sudo mount -t efs -o tls fs-74ba380c:/ efs
+26.cd efs
+27.ls
+-------------------------------------------
+
+	
+	
+

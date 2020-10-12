@@ -1,0 +1,227 @@
+{
+"AWSTemplateFormatVersion" : "2010-09-09",
+"Description" : "AWS CloudFormation Sample Template EC2Instance",
+"Parameters" : {
+		"InstanceTypeParam" : {
+				"Type" : "String",
+				"Default" : "t2.micro",
+				"AllowedValues" : [ "t2.micro" , "t2.nano" , "t2.small"]
+				},
+		"KeyNameParam" : { "Type" : "String" },
+		"VpcCidrParam" : {
+					"Type" : "String",
+					"Description" : "Enter VPC CIDR Blcok"
+				},
+		"PublicSubnetCidrParam" : {
+					"Type" : "String",
+					"Description" : "Enter Public Subnet CIDR Blcok"
+				},
+		"PrivateSubnetCidrParam" : {
+					"Type" : "String",
+					"Description" : "Enter Private Subnet CIDR Blcok"
+				}
+			},
+			
+				"Mappings" : { 
+				"RegionMap" : {
+				"us-east-1"	: {"64":"ami-0947d2ba12ee1ff75"},
+				"us-east-2"	: {"64":"ami-03657b56516ab7912"}
+				
+							}
+						},
+  "Resources" : {
+      "AwsFoundationVpc":
+	  {
+		"Type" : "AWS::EC2::VPC",
+		"Properties" : {
+		"CidrBlock" : { "Ref" : "VpcCidrParam"},
+		"Tags" : [{ "Key" : "Name", "Value" : "aws-foundation-cft-vpc"}]
+		}
+	   },
+	"AwsFoundationInternetGtW" : {
+		"Type" : "AWS::EC2::InternetGateway",
+		"Properties" : {
+			"Tags" : [{ "Key" : "Name", "Value" : "aws-foundation-cft-internet-gtw"}]
+		},
+		"DependsOn" : "AwsFoundationVpc"
+		},
+	"AwsFoundationVpcIgtwAttachment" : {
+		"Type" : "AWS::EC2::VPCGatewayAttachment",
+		"DependsOn" : ["AwsFoundationVpc","AwsFoundationInternetGtW"],
+		"Properties" : {
+		 "InternetGatewayId" : { "Ref" : "AwsFoundationInternetGtW"},
+		 "VpcId" : { "Ref" : "AwsFoundationVpc"}
+			}
+		},
+	"AwsFoundationPublicSubnet" : {
+		"Type" : "AWS::EC2::Subnet",
+		"Properties" : {
+		"AvailabilityZone" : {"Fn::Select" : ["0",{"Fn::GetAZs" :{"Ref" : "AWS::Region"}}]},
+		"CidrBlock":{"Ref" : "PublicSubnetCidrParam"},
+		"MapPublicIpOnLaunch" : "True",
+		"Tags" : [{"Key" : "Name","Value":"aws-foundation-cft-priv-subnet"}],
+		"VpcId": {"Ref" : "AwsFoundationVpc"}
+		}
+		},
+	"AwsFoundationPrivateSubnet" : {
+		"Type" : "AWS::EC2::Subnet",
+		"Properties" : {
+		"AvailabilityZone" : {"Fn::Select" : ["1",{"Fn::GetAZs" :{"Ref" : "AWS::Region"}}]},
+		"CidrBlock":{"Ref" : "PrivateSubnetCidrParam"},
+		"MapPublicIpOnLaunch" : "True",
+		"Tags" : [{"Key" : "Name","Value":"aws-foundation-cft-priv-subnet"}],
+		"VpcId": {"Ref" : "AwsFoundationVpc"}
+		}
+		},	
+	"NatGtwEip" : {
+	"Type" : "AWS::EC2::EIP",
+		"DependsOn" : "AwsFoundationVpcIgtwAttachment",
+		"Properties" : {
+		"Domain" : "vpc"
+		}
+	},
+	"NatGtw" : {
+	"Type" : "AWS::EC2::NatGateway",
+		"Properties" : {
+		"AllocationId" : { "Fn::GetAtt" : ["NatGtwEip","AllocationId"]},
+		"SubnetId" : {"Ref" : "AwsFoundationPublicSubnet"},
+		"Tags" : [{"Key" : "Name" , "Value" : "aws-foundation-cft-nat-gtw"}]
+		}
+	},
+	"AwsFoundationPublicRouteTable" : {
+	"Type" : "AWS::EC2::RouteTable",
+		"DependsOn" : "AwsFoundationPublicSubnet",
+		"Properties" : {
+		"VpcId" : {"Ref" : "AwsFoundationVpc"},
+		"Tags" : [{"Key" : "Name" , "Value" : "aws-foundation-cft-public-route-table"}]
+		}
+	},
+	"AwsFoundationPublicRoute" : {
+	"Type" : "AWS::EC2::Route",
+		"DependsOn" : "AwsFoundationPublicRouteTable",
+		"Properties" : {
+		"DestinationCidrBlock" : "0.0.0.0/0",
+		"GatewayId" : {"Ref" : "AwsFoundationInternetGtW"},
+		"RouteTableId" :{"Ref" : "AwsFoundationPublicRouteTable"}
+		}
+	},
+
+	"AwsFoundationPrivateRouteTable" : {
+	"Type" : "AWS::EC2::RouteTable",
+		"DependsOn" : "AwsFoundationPrivateSubnet",
+		"Properties" : {
+		"VpcId" : {"Ref" : "AwsFoundationVpc"},
+		"Tags" : [{"Key" : "Name" , "Value" : "aws-foundation-cft-private-route-table"}]
+		}
+	},
+	"AwsFoundationPrivateRoute" : {
+	"Type" : "AWS::EC2::Route",
+		"DependsOn" : "AwsFoundationPrivateRouteTable",
+		"Properties" : {
+		"DestinationCidrBlock" : "0.0.0.0/0",
+		"RouteTableId" :{"Ref" : "AwsFoundationPrivateRouteTable"},
+		"NatGatewayId" : {"Ref" : "NatGtw"}
+		}
+	},
+	"AwsFoundationPubSubnetRT" : {
+	"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+	"Properties" : {
+			"RouteTableId" : {"Ref" : "AwsFoundationPublicRouteTable"},
+			"SubnetId" : {"Ref" : "AwsFoundationPublicSubnet"}
+	}
+	},
+	"AwsFoundationPrivSubnetRT" : {
+	"Type" : "AWS::EC2::SubnetRouteTableAssociation",
+	"Properties" : {
+			"RouteTableId" : {"Ref" : "AwsFoundationPrivateRouteTable"},
+			"SubnetId" : {"Ref" : "AwsFoundationPrivateSubnet"}
+	}
+	},
+	"AwsFoundationPubSubnetSecurityGrp" : {
+	"Type" : "AWS::EC2::SecurityGroup",
+	"Description" : "AwsFoundationVpc",
+	"Properties" : {
+	"GroupName": "SecurityGroupForPublicSubet",
+	"GroupDescription" : "SecurityGroupForPublicSubet",
+	"SecurityGroupIngress" : [
+	{
+		"IpProtocol":"tcp",
+		"FromPort":"22",
+		"ToPort":"22",
+		"CidrIp":"0.0.0.0/0"
+		
+	}
+	],
+	"SecurityGroupEgress" : [
+	{
+		"IpProtocol":"tcp",
+		"FromPort":"22",
+		"ToPort":"22",
+		"CidrIp":{"Ref" : "PrivateSubnetCidrParam"}
+		
+	}
+	],	
+	"Tags" : [{ "Key" : "Name","Value":"aws-foundation-cft-public-security-grp"}],
+	"VpcId" : { "Ref" : "AwsFoundationVpc"}
+	}
+	},
+	
+	"AwsFoundationPrivSubnetSecurityGrp" : {
+	"Type" : "AWS::EC2::SecurityGroup",
+	"Description" : "AwsFoundationVpc",
+	"Properties" : {
+	"GroupName": "SecurityGroupForPrivateSubnet",
+	"GroupDescription" : "SecurityGroupForPrivateSubnet",
+	"SecurityGroupIngress" : [
+	{
+		"IpProtocol":"tcp",
+		"FromPort":"22",
+		"ToPort":"22",
+		"CidrIp": { "Ref" : "PublicSubnetCidrParam"}
+		
+	}
+	],
+	"SecurityGroupEgress" : [
+	{
+		"IpProtocol":"tcp",
+		"FromPort":"22",
+		"ToPort":"22",
+		"CidrIp":{"Ref" : "PrivateSubnetCidrParam"}
+		
+	}
+	],	
+	"Tags" : [{ "Key" : "Name","Value":"aws-foundation-cft-public-security-grp"}],
+	"VpcId" : { "Ref" : "AwsFoundationVpc"}
+	}
+	},
+	
+	"AWSFoundationPubEc2Instance" : {
+	"Type" : "AWS::EC2::Instance",
+	"Properties" : {
+	"ImageId" : {"Fn::FindInMap" : ["RegionMap",{"Ref" : "AWS::Region"},64]},
+	"InstanceType" : {"Ref" : "InstanceTypeParam"},
+	"SubnetId" : { "Ref" : "AwsFoundationPublicSubnet"},
+	"Tags" : [{"Key" : "Name", "Value" : "AwsFoundationPubInstance" }],
+	"KeyName" : { "Ref" : "KeyNameParam"}
+	               }
+	},
+	
+	"AWSFoundationPrivEc2Instance" : {
+	"Type" : "AWS::EC2::Instance",
+	"DependsOn" : "AwsFoundationPrivSubnetRT",
+	"Properties" : {
+	"ImageId" : {"Fn::FindInMap" : ["RegionMap",{"Ref" : "AWS::Region"},64]},
+	"InstanceType" : {"Ref" : "InstanceTypeParam"},
+	"SubnetId" : { "Ref" : "AwsFoundationPrivateSubnet" },
+	"Tags" : [
+		{"Key" : "Name", "Value" : "AwsFoundationPrivInstance" },
+		{"Key" : "Env", "Value" : "Training" }
+	         ],
+	"SecurityGroupIds" : [{"Ref":"AwsFoundationPrivSubnetSecurityGrp"}],
+	"KeyName" : { "Ref" : "KeyNameParam"}
+	}
+	}	
+		}
+
+		
+       }    
